@@ -28,6 +28,17 @@ def extract_relevant_text(url):
 
     lines = content.splitlines()
     results = [l.strip() for l in lines if any(kw in l.lower() for kw in KEYWORDS)]
+
+    print(f"--- SCRAPE RESULT: {url} ---")
+    if results:
+        print(f"Keywords found ({len(results)} line(s)):")
+        for line in results:
+            print(f"  >> {line}")
+    else:
+        print("No keywords found. Falling back to first 500 chars of page:")
+        print(content[:500])
+    print("--- END ---")
+
     return "\n".join(results) if results else content[:500]
 
 def load_snapshots():
@@ -51,7 +62,6 @@ def check():
     for url in URLS:
         try:
             text = extract_relevant_text(url)
-            print(f"Extracted from {url}:\n{text}\n")
             current_hash = hashlib.md5(text.encode()).hexdigest()
             previous_hash = snaps.get(url)
 
