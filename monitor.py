@@ -7,9 +7,10 @@ CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 URLS = [
     "https://www.unsw.edu.au/science/psychology-clinic/waitlists",
     "https://www.unsw.edu.au/science/neuropsychology-clinic/waitlists",
+    "https://www.sydney.edu.au/brain-mind/our-clinics/psychology-clinic.html",
 ]
 
-KEYWORDS = ["neuropsychological", "neuropsych", "adult neuropsych"]
+KEYWORDS = ["neuropsychological", "neuropsych", "adult neuropsych", "psychometric"]
 SNAPSHOT_FILE = "snapshots.txt"
 
 def send_message(text):
@@ -82,7 +83,7 @@ def check():
     save_snapshots(snaps)
 
 check()
-send_message("✅ Bot restarted and monitoring UNSW waitlists.")
+send_message("✅ Bot restarted and monitoring UNSW + USyd waitlists.")
 schedule.every().day.at("09:00").do(check)
 
 while True:
