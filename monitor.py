@@ -82,6 +82,7 @@ def check():
 
 # Run once immediately, then once per day
 check()
+send_message("✅ Bot is live and monitoring the UNSW waitlist. You'll be notified when the neuropsychological assessment waitlist changes.")
 schedule.every().day.at("09:00").do(check)
 
 while True:
