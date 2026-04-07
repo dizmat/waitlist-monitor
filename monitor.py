@@ -52,15 +52,33 @@ def save_snapshots(snaps):
 
 def check():
     print("Running check...")
+    snaps = load_snapshots()
+
     for url in URLS:
         try:
             text = extract_relevant_text(url)
-            if "closed" in text.lower():
-                send_message(f"✅ Verified! Found status text on:\n{url}\n\nCurrent status snippet: {text[:200]}")
+            current_hash = hashlib.md5(text.encode()).hexdigest()
+            previous_hash = snaps.get(url)
+
+            if previous_hash is None:
+                snaps[url] = current_hash
+                print(f"Initial snapshot saved for {url}")
+            elif current_hash != previous_hash:
+                snaps[url] = current_hash
+                msg = (
+                    f"🔔 <b>Waitlist change detected!</b>\n\n"
+                    f"The neuropsychological assessment waitlist section may have changed.\n\n"
+                    f"<a href='{url}'>Check it now →</a>"
+                )
+                send_message(msg)
+                print(f"Change detected at {url} — notification sent.")
             else:
-                send_message(f"⚠️ Could not find status text on:\n{url}")
+                print(f"No change at {url}")
+
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error checking {url}: {e}")
+
+    save_snapshots(snaps)
 
 # Run once immediately, then once per day
 check()
