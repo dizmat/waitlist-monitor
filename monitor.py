@@ -1,5 +1,5 @@
-import hashlib, time, requests, os, schedule
-from bs4 import BeautifulSoup
+import hashlib, os, schedule, time, requests
+from playwright.sync_api import sync_playwright
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
@@ -12,8 +12,6 @@ URLS = [
 KEYWORDS = ["neuropsychological", "neuropsych", "adult neuropsych"]
 SNAPSHOT_FILE = "snapshots.txt"
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; waitlist-monitor/1.0)"}
-
 def send_message(text):
     requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
@@ -21,25 +19,22 @@ def send_message(text):
     )
 
 def extract_relevant_text(url):
-    r = requests.get(url, headers=HEADERS, timeout=15)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(url, wait_until="networkidle", timeout=30000)
+        content = page.inner_text("body")
+        browser.close()
 
-    # Find any element containing neuropsych keywords
-    results = []
-    for tag in soup.find_all(string=True):
-        if any(kw in tag.lower() for kw in KEYWORDS):
-            parent = tag.parent
-            results.append(parent.get_text(strip=True))
-
-    return "\n".join(results) if results else soup.get_text()
+    lines = content.splitlines()
+    results = [l.strip() for l in lines if any(kw in l.lower() for kw in KEYWORDS)]
+    return "\n".join(results) if results else content[:500]
 
 def load_snapshots():
     if not os.path.exists(SNAPSHOT_FILE):
         return {}
-    lines = open(SNAPSHOT_FILE).read().strip().split("\n")
     snaps = {}
-    for line in lines:
+    for line in open(SNAPSHOT_FILE).read().strip().split("\n"):
         if "|" in line:
             url, h = line.split("|", 1)
             snaps[url] = h
@@ -53,10 +48,10 @@ def save_snapshots(snaps):
 def check():
     print("Running check...")
     snaps = load_snapshots()
-
     for url in URLS:
         try:
             text = extract_relevant_text(url)
+            print(f"Extracted from {url}:\n{text}\n")
             current_hash = hashlib.md5(text.encode()).hexdigest()
             previous_hash = snaps.get(url)
 
@@ -65,23 +60,19 @@ def check():
                 print(f"Initial snapshot saved for {url}")
             elif current_hash != previous_hash:
                 snaps[url] = current_hash
-                msg = (
+                send_message(
                     f"🔔 <b>Waitlist change detected!</b>\n\n"
-                    f"The neuropsychological assessment waitlist section may have changed.\n\n"
                     f"<a href='{url}'>Check it now →</a>"
                 )
-                send_message(msg)
-                print(f"Change detected at {url} — notification sent.")
+                print(f"Change detected — notification sent.")
             else:
                 print(f"No change at {url}")
-
         except Exception as e:
             print(f"Error checking {url}: {e}")
-
     save_snapshots(snaps)
 
-# Run once immediately, then once per day
 check()
+send_message("✅ Bot restarted and monitoring UNSW waitlists.")
 schedule.every().day.at("09:00").do(check)
 
 while True:
