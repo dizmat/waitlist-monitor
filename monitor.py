@@ -19,6 +19,14 @@ def send_message(text):
         json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
     )
 
+def send_photo(photo_path, caption=""):
+    with open(photo_path, "rb") as f:
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+            data={"chat_id": CHAT_ID, "caption": caption},
+            files={"photo": f}
+        )
+
 def extract_relevant_text(url):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -41,6 +49,35 @@ def extract_relevant_text(url):
     print("--- END ---")
 
     return "\n".join(results) if results else content[:500]
+
+def take_screenshot(url):
+    """Take a screenshot scrolled to the first keyword match on the page."""
+    screenshot_path = f"/tmp/screenshot_{hashlib.md5(url.encode()).hexdigest()}.png"
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.goto(url, wait_until="networkidle", timeout=30000)
+
+        # Try to find and scroll to the first element containing a keyword
+        scrolled = False
+        for kw in KEYWORDS:
+            try:
+                loc = page.locator(f"text=/{kw}/i").first
+                if loc.is_visible():
+                    loc.scroll_into_view_if_needed()
+                    page.wait_for_timeout(500)
+                    scrolled = True
+                    break
+            except Exception:
+                continue
+
+        if not scrolled:
+            print(f"No keyword element found to scroll to on {url}")
+
+        page.screenshot(path=screenshot_path)
+        browser.close()
+
+    return screenshot_path
 
 def load_snapshots():
     if not os.path.exists(SNAPSHOT_FILE):
@@ -82,9 +119,22 @@ def check():
             print(f"Error checking {url}: {e}")
     save_snapshots(snaps)
 
+def send_daily_screenshots():
+    print("Sending daily screenshots...")
+    for url in URLS:
+        try:
+            path = take_screenshot(url)
+            send_photo(path, caption=f"📸 Daily snapshot\n{url}")
+            os.remove(path)
+            print(f"Screenshot sent for {url}")
+        except Exception as e:
+            print(f"Error screenshotting {url}: {e}")
+
 check()
+send_daily_screenshots()
 send_message("✅ Bot restarted and monitoring UNSW + USyd waitlists.")
 schedule.every().day.at("09:00").do(check)
+schedule.every().day.at("09:01").do(send_daily_screenshots)
 
 while True:
     schedule.run_pending()
