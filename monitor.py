@@ -50,29 +50,55 @@ def extract_relevant_text(url):
 
     return "\n".join(results) if results else content[:500]
 
+def dismiss_cookies(page):
+    """Try to dismiss cookie popups on UNSW and USyd sites."""
+    cookie_buttons = [
+        "text=Accept only essential",
+        "text=Accept all",
+        "button:has-text('Accept')",
+        "[aria-label='Close']",
+    ]
+    for selector in cookie_buttons:
+        try:
+            btn = page.locator(selector).first
+            if btn.is_visible(timeout=2000):
+                btn.click()
+                page.wait_for_timeout(500)
+                return
+        except Exception:
+            continue
+
 def take_screenshot(url):
-    """Take a screenshot scrolled to the first keyword match on the page."""
+    """Take a screenshot of the waitlist status area on each page."""
     screenshot_path = f"/tmp/screenshot_{hashlib.md5(url.encode()).hexdigest()}.png"
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(url, wait_until="networkidle", timeout=30000)
 
-        # Try to find and scroll to the first element containing a keyword
-        scrolled = False
-        for kw in KEYWORDS:
+        dismiss_cookies(page)
+
+        # UNSW pages: click the "Adult Neuropsychological Assessments" tab
+        if "unsw.edu.au" in url:
             try:
-                loc = page.locator(f"text=/{kw}/i").first
-                if loc.is_visible():
+                tab = page.locator("text=Adult Neuropsychological Assessments").first
+                if tab.is_visible(timeout=3000):
+                    tab.click()
+                    page.wait_for_timeout(1000)
+                    tab.scroll_into_view_if_needed()
+                    page.wait_for_timeout(500)
+            except Exception:
+                print(f"Could not click neuropsych tab on {url}")
+
+        # USyd page: scroll to the waitlist status section
+        if "sydney.edu.au" in url:
+            try:
+                loc = page.locator("text=/waitlist/i").first
+                if loc.is_visible(timeout=3000):
                     loc.scroll_into_view_if_needed()
                     page.wait_for_timeout(500)
-                    scrolled = True
-                    break
             except Exception:
-                continue
-
-        if not scrolled:
-            print(f"No keyword element found to scroll to on {url}")
+                print(f"Could not scroll to waitlist section on {url}")
 
         page.screenshot(path=screenshot_path)
         browser.close()
