@@ -78,20 +78,34 @@ def take_screenshot(url):
 
         dismiss_cookies(page)
 
-        # UNSW pages: click the "Adult Neuropsychological Assessments" tab
+        # UNSW pages
         if "unsw.edu.au" in url:
+            scrolled = False
+
+            # Psychology clinic page: click the "Adult Neuropsychological Assessments" tab
             try:
                 tab = page.locator("text=Adult Neuropsychological Assessments").first
-                if tab.is_visible(timeout=3000):
+                if tab.is_visible(timeout=2000):
                     tab.click()
                     page.wait_for_timeout(1000)
-                    # Position the tab bar near the top of the viewport
-                    box = tab.bounding_box()
-                    if box:
-                        page.evaluate(f"window.scrollTo(0, {box['y'] - 20})")
+                    # Get absolute Y position and scroll tab to top of viewport
+                    y = tab.evaluate("el => el.getBoundingClientRect().top + window.scrollY")
+                    page.evaluate(f"window.scrollTo(0, {y - 20})")
                     page.wait_for_timeout(500)
+                    scrolled = True
             except Exception:
-                print(f"Could not click neuropsych tab on {url}")
+                pass
+
+            # Neuropsychology clinic page (or fallback): scroll to OPEN/CLOSED items
+            if not scrolled:
+                try:
+                    item = page.locator("text=/(CLOSED)|(OPEN)/").first
+                    if item.is_visible(timeout=3000):
+                        y = item.evaluate("el => el.getBoundingClientRect().top + window.scrollY")
+                        page.evaluate(f"window.scrollTo(0, {y - 100})")
+                        page.wait_for_timeout(500)
+                except Exception:
+                    print(f"Could not scroll to waitlist content on {url}")
 
         # USyd page: scroll to the waitlist status section
         if "sydney.edu.au" in url:
