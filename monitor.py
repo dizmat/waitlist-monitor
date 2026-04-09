@@ -87,6 +87,9 @@ def take_screenshot(url):
                     page.wait_for_timeout(1000)
                     tab.scroll_into_view_if_needed()
                     page.wait_for_timeout(500)
+                    # Scroll down a bit more to get past the hero image
+                    page.evaluate("window.scrollBy(0, 300)")
+                    page.wait_for_timeout(300)
             except Exception:
                 print(f"Could not click neuropsych tab on {url}")
 
